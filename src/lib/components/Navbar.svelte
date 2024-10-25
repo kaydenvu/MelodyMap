@@ -2,10 +2,11 @@
 
 <script>
   import { getAuth, signOut } from "firebase/auth";
+  import { auth } from "$lib/firebase.client.js";
   import { onMount } from "svelte";
 
   let user = null; // Store user state
-  const auth = getAuth();
+  
 
   onMount(() => {
     // Check if user is signed in (you can also check this in a store for a more global state)

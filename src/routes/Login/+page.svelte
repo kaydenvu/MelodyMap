@@ -1,6 +1,7 @@
 <script>
     import Navbar from '$lib/components/Navbar.svelte';
-    import { auth } from '$lib/assets/firebase.client.js';
+    import { browser } from "$app/environment";
+    import { auth } from '$lib/firebase.client.js';
     import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
     import { goto } from '$app/navigation';
 

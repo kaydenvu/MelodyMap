@@ -1,0 +1,14 @@
+I1025 02:01:05.704469   46508 load.go:37] Reloading schema and connectors...
+I1025 02:01:05.722767   46508 control.go:45] [engine.Service /emulator/MelodyMap b43b] UpdateSchema(): done sources: schema/schema.gql [1384B] 
+I1025 02:01:05.742212   46508 control.go:73] [engine.Service /emulator/MelodyMap b43b] UpdateConnector(default): done sources: connector/queries.gql [1855B] connector/mutations.gql [1163B] 
+I1025 02:01:05.798760   46508 codegen.go:82] [connector "default" javascriptSdk] Generating sources into "/Users/kaydenvu/Downloads/MelodyMap/dataconnect-generated/js/default-connector"
+I1025 02:01:05.802459   46508 collector.go:107] schema extensions wrote into "/Users/kaydenvu/Downloads/MelodyMap/dataconnect/.dataconnect/schema"
+Generated sources: prelude.gql [60423B] 
+I1025 02:01:05.804239   46508 collector.go:107] connector "default" javascriptSdk wrote into "/Users/kaydenvu/Downloads/MelodyMap/dataconnect-generated/js/default-connector"
+Generated sources: index.d.ts [264B] esm/index.esm.js [182B] esm/package.json [17B] index.cjs.js [223B] package.json [623B] 
+I1025 02:01:05.812155   46508 installsdk.go:48] Package @firebasegen/default-connector is already installed. Skipping installation
+I1025 02:01:05.812208   46508 load.go:115] Finished reloading
+I1025 02:01:05.816496   46508 dev.go:95] Listening on address (HTTP + gRPC): 127.0.0.1:9399
+I1025 02:01:05.816697   46508 dev.go:95] Listening on address (HTTP + gRPC): [::1]:9399
+I1025 02:01:08.254549   46508 control.go:45] [engine.Service /emulator/MelodyMap 0ed7] UpdateSchema(): done sources: schema/schema.gql [1384B] 
+I1025 02:01:08.254715   46508 control.go:73] [engine.Service /emulator/MelodyMap 0ed7] UpdateConnector(default): done sources: connector/mutations.gql [1163B] connector/queries.gql [1855B] 

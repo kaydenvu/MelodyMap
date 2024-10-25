@@ -16,14 +16,19 @@ const firebaseConfig = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
-// Initialize Firebase
+// Initialize Firebase only on the client-side
 let firebaseApp;
-if(!getApps().length){
-  firebaseApp = initializeApp(firebaseConfig)
-} else {
-  firebaseApp = getApp()
-  deleteApp(firebaseApp)
-  firebaseApp =initializeApp(firebaseConfig)
+let auth;
+
+if (typeof window !== "undefined") {
+  if (!getApps().length) {
+    firebaseApp = initializeApp(firebaseConfig);
+  } else {
+    firebaseApp = getApp();
+  }
+
+  // Get the Auth instance
+  auth = getAuth(firebaseApp);
 }
 
-export const auth = getAuth(firebaseApp)
+export { auth };

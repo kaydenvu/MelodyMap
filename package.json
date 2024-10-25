@@ -33,6 +33,7 @@
 	},
 	"type": "module",
 	"dependencies": {
+		"@firebasegen/default-connector": "file:dataconnect-generated/js/default-connector",
 		"@googlemaps/js-api-loader": "^1.16.6",
 		"firebase": "^10.11.1",
 		"geohash": "^0.0.1",
