@@ -1,9 +1,9 @@
 <script>
     import Navbar from '$lib/components/Navbar.svelte';
     import { getAuth, onAuthStateChanged } from "firebase/auth";
+    import { auth } from "$lib/firebase.client.js";
     import { onMount } from 'svelte';
-
-    const auth = getAuth();
+    
     let user = null; // To store user information
     let loading = true; // To handle loading state
 
