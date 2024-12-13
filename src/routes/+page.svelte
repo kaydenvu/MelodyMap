@@ -78,12 +78,19 @@
         }
 
         const location = place.geometry.location;
+        // Update the address with the selected place's formatted address
+        if (place.address_components) {
+            address = place.address_components
+                .map(component => component.long_name) // Extract long_name from each component
+                .join(', '); // Combine the components with a comma and space
+        } else {
+            address = "Address details not available";
+        }
+
         coordinates = {
             lat: location.lat(),
             lng: location.lng(),
-        };
-        // Update the address with the selected place's formatted address
-        address = place.formatted_address;
+        };    
         errorMessage = "";
     }
     // Function to geocode address using Google Maps Geocoding API
@@ -545,19 +552,19 @@ function calculateAndDisplayRoute(origin, destination) {
         <button id="load-more-button" on:click={loadMoreEvents}>Load More</button>
     </div>
 </div>
-<!-- -->
+<!-- 
 	<div class="input-container">
 		<label for="lat">Latitude:</label>
 		<input name="lat" type="text" bind:value={lat} />
 		<label for="lng">Longitude:</label>
 		<input name="lng" type="text" bind:value={lng} />
 	</div>
-
+-->
 <div class="button-container">
     <button id="currentPositionBtn" on:click={get_current_position}>Search by Current Position</button>
     <button id="searchAreaBtn" on:click={onMapViewportChanged}>Search in this area</button>
-    <button id="clearCoordinatesBtn" on:click={clearCoordinates}>Clear Coordinates</button>
-
+    <!-- <button id="clearCoordinatesBtn" on:click={clearCoordinates}>Clear Coordinates</button>
+    -->
     <div class="address-search-container">
         <h1>Search by Address</h1>
 
@@ -576,7 +583,7 @@ function calculateAndDisplayRoute(origin, destination) {
         {/if}
 
         {#if coordinates}
-            <p>Coordinates: {coordinates.lat}, {coordinates.lng}</p>
+            <p>Address: {address}</p>
             <button on:click={useCoordinates}>Search Here</button>
         {/if}
     </div>
@@ -739,6 +746,8 @@ function calculateAndDisplayRoute(origin, destination) {
 
 #map-container {
     flex-grow: 1; /* Allow the map to fill the remaining space */
+    padding: 0;  /* Remove padding */
+
 }
 
 #sidebar-container {
@@ -867,6 +876,7 @@ function calculateAndDisplayRoute(origin, destination) {
     display: flex; /* Use flexbox */
     align-items: center; /* Center vertically */
     margin-bottom: 20px; /* Add bottom margin */
+    padding: 0;  /* Remove padding */
 }
 
 /* Style for the search type select */
@@ -883,12 +893,8 @@ function calculateAndDisplayRoute(origin, destination) {
     flex-direction: row;  /* Align items horizontally */
     gap: 20px;  /* Space between items */
     align-items: center;  /* Vertically align items */
-}
-
-.address-search-container {
-    display: flex;
-    flex-direction: column;  /* Stack the input and button vertically */
-    gap: 10px;  /* Space between elements inside the container */
+    padding: 0;  /* Remove padding */
+    margin-top: 0px; /* Space between map container and buttons */
 }
 
 </style>
