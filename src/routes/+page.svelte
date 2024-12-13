@@ -129,7 +129,8 @@
 
             // Center the map using the coordinates
             map_object.setCenter({ lat, lng });
-
+            map_object.setZoom(10);
+            clearMarkers();
             // Fetch music events based on the coordinates
             fetchMusicEvents(lat, lng)
                 .then((data) => {
@@ -416,6 +417,10 @@
     });
 }
 
+function filterSearch(){ 
+
+}
+
 function getDirections(destination) {
     if ('geolocation' in navigator) {
         navigator.geolocation.getCurrentPosition(
@@ -534,13 +539,13 @@ function calculateAndDisplayRoute(origin, destination) {
                 <option value="venue">Venue</option>
             </select>
             <input type="text" id="search-input" placeholder="Search by concert or artist" />
-            <button id="search-button">Search</button>
+            <button id="search-button" on:click={filterSearch}>Search</button>
         </div>
         <ul id="concert-list-items"></ul>
         <button id="load-more-button" on:click={loadMoreEvents}>Load More</button>
     </div>
 </div>
-
+<!-- -->
 	<div class="input-container">
 		<label for="lat">Latitude:</label>
 		<input name="lat" type="text" bind:value={lat} />
@@ -630,7 +635,6 @@ function calculateAndDisplayRoute(origin, destination) {
         transform: translate(0%, 10%);
     }
 
-    /* Optional: Style for labels */
     .input-container label {
         font-size: 16px;
         color: #333;
