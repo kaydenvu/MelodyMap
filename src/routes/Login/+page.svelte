@@ -64,9 +64,9 @@
         {isSignUp
             ? 'Already have an account?'
             : 'Don’t have an account?'}
-        <a href="#" on:click="{() => (isSignUp = !isSignUp)}">
+        <button type="button" on:click={() => (isSignUp = !isSignUp)} class="toggle-link">
             {isSignUp ? 'Log in' : 'Sign up'}
-        </a>
+        </button>
     </p>
 </div>
 
@@ -180,8 +180,19 @@
         margin-top: 1rem;
     }
 
-    a {
+    .toggle-link {
+        background: none;
+        border: none;
         color: #61b0ff;
         cursor: pointer;
+        text-decoration: underline;
+        font-size: inherit;
+        padding: 0;
+    }
+
+    .toggle-link:hover {
+        color: #3a9fd1;
+        text-decoration: none;
+        background: transparent;
     }
 </style>

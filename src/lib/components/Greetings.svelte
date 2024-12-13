@@ -11,7 +11,8 @@
     onMount(() => {
         interval = setInterval(() => {
             currentSection = currentSection === 2 ? 1 : currentSection + 1;
-            document.getElementById(`toggle${currentSection}`).checked = true;
+            if (document.getElementById(`toggle${currentSection}`))
+              document.getElementById(`toggle${currentSection}`).checked = true;
         }, 5000); // Rotate every 5 seconds
     });
 

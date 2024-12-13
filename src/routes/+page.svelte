@@ -16,6 +16,10 @@
     let Map, Marker, InfoWindow;
     let map_object; // the Google Maps object
     let map_element; // the DOM element
+    let address = ""; // User's input for the address
+    let coordinates = null; // Store the geocoded coordinates
+    let errorMessage = ""; // Error message if geocoding fails
+    let autocomplete;
     
     let directionsService;
     let directionsRenderer;
@@ -40,18 +44,107 @@
         loadGoogleMapsAPI().then(() => {
             map_element = document.getElementById('map');
             initializeMap();
+            initializeAutocomplete();
         });
     }
 
     async function loadGoogleMapsAPI() {
         return new Promise((resolve, reject) => {
             const script = document.createElement('script');
-            script.src = `https://maps.googleapis.com/maps/api/js?key=${PUBLIC_GOOGLE_MAPS_API_KEY}&callback=initMap`;
+            script.src = `https://maps.googleapis.com/maps/api/js?key=${PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places&callback=initMap`;
             script.async = true;
             window.initMap = () => resolve();
             script.onerror = () => reject(new Error('Google Maps API failed to load'));
             document.head.appendChild(script);
         });
+    }
+
+    // Function to initialize the Google Maps Autocomplete API
+    function initializeAutocomplete() {
+        const input = document.getElementById('address');
+        autocomplete = new google.maps.places.Autocomplete(input);
+        autocomplete.setFields(['address_component', 'geometry']);
+
+        // Add listener to handle the selected address
+        autocomplete.addListener('place_changed', onPlaceChanged);
+    }
+
+    function onPlaceChanged() {
+        const place = autocomplete.getPlace();
+        if (!place.geometry) {
+            errorMessage = "No details available for the selected address.";
+            coordinates = null;
+            return;
+        }
+
+        const location = place.geometry.location;
+        coordinates = {
+            lat: location.lat(),
+            lng: location.lng(),
+        };
+        // Update the address with the selected place's formatted address
+        address = place.formatted_address;
+        errorMessage = "";
+    }
+    // Function to geocode address using Google Maps Geocoding API
+    async function geocodeAddress() {
+        if (!address) {
+            errorMessage = "Please enter an address.";
+            return;
+        }
+
+        try {
+            const response = await fetch(
+                `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(
+                    address
+                )}&key=${PUBLIC_GOOGLE_MAPS_API_KEY}`
+            );
+
+            const data = await response.json();
+
+            console.log(address);
+            console.log(data);
+
+            if (data.status === "OK" && data.results.length > 0) {
+                const location = data.results[0].geometry.location;
+                coordinates = {
+                    lat: location.lat,
+                    lng: location.lng,
+                };
+                errorMessage = "";
+            } else {
+                errorMessage = "Could not find coordinates for the provided address.";
+                coordinates = null;
+            }
+        } catch (error) {
+            errorMessage = "An error occurred while fetching the coordinates.";
+            coordinates = null;
+        }
+    }
+
+    function useCoordinates() {
+        if (coordinates && coordinates.lat && coordinates.lng) {
+            const lat = coordinates.lat;
+            const lng = coordinates.lng;
+
+            // Center the map using the coordinates
+            map_object.setCenter({ lat, lng });
+
+            // Fetch music events based on the coordinates
+            fetchMusicEvents(lat, lng)
+                .then((data) => {
+                    console.log("Fetched music events:", data);
+                    processConcertData(data);  // Process concert data as required
+                    updateConcertList(data);   // Update the concert list with the new data
+                })
+                .catch((error) => {
+                    console.error("Error fetching music events:", error);
+                    errorMessage = "There was an error fetching music events.";
+                });
+        } else {
+            console.log("Coordinates are not valid:", coordinates);
+            errorMessage = "Please provide a valid address first.";
+        }
     }
 
     async function initializeMap() {
@@ -98,42 +191,48 @@
     }
 
 	function get_current_position() {
-    navigator.geolocation.getCurrentPosition((position) => {
-        lat = position.coords.latitude;
-        lng = position.coords.longitude;
+        navigator.geolocation.getCurrentPosition((position) => {
+            lat = position.coords.latitude;
+            lng = position.coords.longitude;
 
-        map_object.setCenter({ lat, lng });
-        fetchMusicEvents(lat, lng).then((data) => {
-            processConcertData(data);
-            updateConcertList(data);
+            map_object.setCenter({ lat, lng });
+            fetchMusicEvents(lat, lng).then((data) => {
+                processConcertData(data);
+                updateConcertList(data);
+            });
+        }, (error) => {
+            console.error('Error getting current position:', error);
         });
-    }, (error) => {
-        console.error('Error getting current position:', error);
-    });
-}
+    }
     let currentPageSize = 50;
     function fetchMusicEvents(latitude, longitude) {
-        const geoHash = calculateGeoHash(latitude, longitude);
-        const concertEndpoint = `https://app.ticketmaster.com/discovery/v2/events.json?apikey=${TICKETMASTER_API_KEY}&keyword=music&radius=50&locale=*&geoPoint=${geoHash}&size=${currentPageSize}`;
+        return new Promise((resolve, reject) => {
+            const geoHash = calculateGeoHash(latitude, longitude);
+            const concertEndpoint = `https://app.ticketmaster.com/discovery/v2/events.json?apikey=${TICKETMASTER_API_KEY}&keyword=music&radius=50&locale=*&geoPoint=${geoHash}&size=${currentPageSize}`;
 
-        fetch(concertEndpoint)
-            .then(response => response.json())
-            .then(data => {
-                processConcertData(data);
-				updateConcertList(data);
-                
-        // Check if there are more events to load
-        if (data._embedded.events.length < currentPageSize) {
-                showLoadMoreButton = false;
-            } else {
-                showLoadMoreButton = true;
-            }
-            })
-            .catch(error => {
-                console.error('Error fetching music events:', error);
-            });
+            fetch(concertEndpoint)
+                .then(response => response.json())
+                .then(data => {
+                    // Process and update concert data
+                    processConcertData(data);
+                    updateConcertList(data);
+
+                    // Check if there are more events to load
+                    if (data._embedded.events.length < currentPageSize) {
+                        showLoadMoreButton = false;
+                    } else {
+                        showLoadMoreButton = true;
+                    }
+
+                    // Resolve the promise with the data
+                    resolve(data);
+                })
+                .catch(error => {
+                    console.error('Error fetching music events:', error);
+                    reject(error);  // Reject the promise if there's an error
+                });
+        });
     }
-
     function calculateGeoHash(latitude, longitude) {
         return encode(latitude, longitude, 5); // GeoHash precision
     }
@@ -407,20 +506,10 @@ function calculateAndDisplayRoute(origin, destination) {
     });
 });
 
-// onMount(() => {
-//     loadMoreButton = document.getElementById('load-more-button');
-//     loadMoreButton.addEventListener('click', loadMoreEvents);
-// });
-
-// onDestroy(() => {
-//     if (loadMoreButton) {
-//         loadMoreButton.removeEventListener('click', loadMoreEvents);
-//     }
-// });
-
 }
 
 </script>
+
 <Greetings/>
 <Navbar />
 
@@ -459,10 +548,34 @@ function calculateAndDisplayRoute(origin, destination) {
 		<input name="lng" type="text" bind:value={lng} />
 	</div>
 
-<button id="currentPositionBtn" on:click={get_current_position}>Get Current Position</button>
-<button id="searchAreaBtn" on:click={onMapViewportChanged}>Search in this area</button>
-<button id="clearCoordinatesBtn" on:click={clearCoordinates}>Clear Coordinates</button>
+<div class="button-container">
+    <button id="currentPositionBtn" on:click={get_current_position}>Search by Current Position</button>
+    <button id="searchAreaBtn" on:click={onMapViewportChanged}>Search in this area</button>
+    <button id="clearCoordinatesBtn" on:click={clearCoordinates}>Clear Coordinates</button>
 
+    <div class="address-search-container">
+        <h1>Search by Address</h1>
+
+        <label for="address">Enter Address:</label>
+        <input 
+            type="text" 
+            id="address" 
+            bind:value={address} 
+            placeholder="Type address" 
+        />
+
+        <button on:click={geocodeAddress}>Search</button>
+
+        {#if errorMessage}
+            <p class="error">{errorMessage}</p>
+        {/if}
+
+        {#if coordinates}
+            <p>Coordinates: {coordinates.lat}, {coordinates.lng}</p>
+            <button on:click={useCoordinates}>Search Here</button>
+        {/if}
+    </div>
+</div>
 
 <div id="directions-container" style="display: none;">
     <div id="travel-distance"></div>
@@ -486,6 +599,8 @@ function calculateAndDisplayRoute(origin, destination) {
         <p><a href={selectedEventDetails.url} target="_blank">Tickets</a></p>
     </div>
 {/if}
+
+
 
 <style>
 	@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@200;300;400;500;600;700&display=swap');
@@ -757,6 +872,19 @@ function calculateAndDisplayRoute(origin, destination) {
     font-size: 9px; /* Set font size */
     padding: 6px; /* Add padding */
     margin-right: 10px; /* Add right margin */
+}
+
+.button-container {
+    display: flex;
+    flex-direction: row;  /* Align items horizontally */
+    gap: 20px;  /* Space between items */
+    align-items: center;  /* Vertically align items */
+}
+
+.address-search-container {
+    display: flex;
+    flex-direction: column;  /* Stack the input and button vertically */
+    gap: 10px;  /* Space between elements inside the container */
 }
 
 </style>
