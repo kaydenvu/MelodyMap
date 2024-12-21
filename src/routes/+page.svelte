@@ -6,8 +6,13 @@
     import { browser } from '$app/environment';
     import pkg from 'ngeohash';
     import { onMount, onDestroy } from 'svelte';
+    import { goto } from '$app/navigation'; 
     import { writable } from 'svelte/store';
-
+    import { db, auth } from '$lib/firebase.client.js';
+    import { onAuthStateChanged } from "firebase/auth";
+    import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+    import { query, where, getDocs } from 'firebase/firestore';
+    
 	const { encode } = pkg;
 
     const PUBLIC_GOOGLE_MAPS_API_KEY = import.meta.env.VITE_PUBLIC_GOOGLE_MAPS_API_KEY;
@@ -27,6 +32,22 @@
     let showLoadMoreButton = false; // Track when to show the button
     let isLoading = false; // Track when data is being fetched
     let currentPageUrl = writable(null); // Track the current page URL
+    let concerts = writable([]); // Holds the list of concerts
+    let filteredConcerts = writable([]); // Holds the filtered concerts
+
+    // Define the search input and search type
+    let searchType = "artist"; // Default search type (artist or venue)
+    let searchInput = ""; // This is the text input for search
+
+    let user = writable(null);  // To store user information
+    let loading = writable(true); // To handle loading state
+
+    onMount(() => {
+        onAuthStateChanged(auth, (currentUser) => {
+            user.set(currentUser); // Set the user variable based on authentication state
+            loading.set(false); // Set loading to false after checking auth state
+        });
+    });
 
     export function loadMoreEvents() {
         currentPageSize += 50;
@@ -231,6 +252,8 @@
                     } else {
                         showLoadMoreButton = true;
                     }
+                    concerts.set(data._embedded.events || []);
+                    filteredConcerts.set(data._embedded.events || []);
 
                     // Resolve the promise with the data
                     resolve(data);
@@ -421,12 +444,37 @@
             concertListElement.appendChild(concertItem);
             uniqueEventNames.add(event.name);
             }
-    });
-}
+        });
+    }
 
-function filterSearch(){ 
+ // Function to filter concerts based on search input
+    function filterSearch() {
+        const query = searchInput.toLowerCase().trim();
+        concerts.subscribe((concertList) => {
+            let result = concertList.filter((concert) => {
+                const eventName = concert.name.toLowerCase();
+                const venueName = concert._embedded.venues[0].name.toLowerCase();
+                
+                if (searchType === 'artist') {
+                    return eventName.includes(query);
+                } else if (searchType === 'venue') {
+                    return venueName.includes(query);
+                }
+                return false;
+            });
 
-}
+            // Sort filtered results by start date
+            result.sort((a, b) => {
+                const dateA = new Date(a.dates.start.localDate);
+                const dateB = new Date(b.dates.start.localDate);
+                return dateA - dateB;
+            });
+
+            filteredConcerts.set(result); // Update the filtered concert list
+        });
+    }
+
+
 
 function getDirections(destination) {
     if ('geolocation' in navigator) {
@@ -520,6 +568,55 @@ function calculateAndDisplayRoute(origin, destination) {
 
 }
 
+
+    // Function to save event details to Firestore
+    async function saveEventDetails() {
+        try {
+            const user = auth.currentUser; // Ensure the user is authenticated
+            if (!user) {
+                console.log("User is not logged in");
+                return;
+            }
+
+            // Define the event details you want to save
+            const eventData = {
+                userId: user.uid, // User ID from Firebase Authentication
+                name: selectedEventDetails.name,  // Event name
+                date: selectedEventDetails.dates.start.localDate, // Event date
+                time: selectedEventDetails.dates.start.localTime || 'Unavailable', // Event time
+                venue: selectedEventDetails._embedded.venues[0].name, // Venue name
+                address: selectedEventDetails._embedded.venues[0].address.line1, // Venue address
+                url: selectedEventDetails.url, // Event ticket URL
+                savedAt: serverTimestamp()  // Timestamp for when the event is saved
+            };
+
+             // Query Firestore to check if the event is already saved for this user
+            const q = query(
+                collection(db, 'saved_events'),
+                where('userId', '==', user.uid),
+                where('name', '==', eventData.name),
+                where('date', '==', eventData.date)
+            );
+
+            const querySnapshot = await getDocs(q);
+
+            // If the event exists, don't save it again
+            if (!querySnapshot.empty) {
+                alert("This event is already saved to your account.");
+                return;
+            }
+
+            // Save the event data to the 'saved_events' collection in Firestore
+            const docRef = await addDoc(collection(db, 'saved_events'), eventData);
+
+            // Successfully saved to Firestore
+            console.log("Event saved with ID: ", docRef.id);
+            alert("Event saved!");
+        } catch (error) {
+            console.error("Error saving event: ", error);
+        }
+    }
+
 </script>
 
 <Greetings/>
@@ -540,15 +637,29 @@ function calculateAndDisplayRoute(origin, destination) {
 
     <div id="sidebar-container">
         <h2>Concerts</h2>
-        <div class="search-container">
-            <select id="search-type">
+        <div class="search-container" style="margin-bottom: 20px;">
+            <select id="search-type" style="width: 100%; padding: 8px; margin-bottom: 10px;">
                 <option value="artist">Artist</option>
                 <option value="venue">Venue</option>
             </select>
-            <input type="text" id="search-input" placeholder="Search by concert or artist" />
-            <button id="search-button" on:click={filterSearch}>Search</button>
+            <input 
+                type="text" 
+                id="search-input" 
+                bind:value={searchInput} 
+                placeholder="Search by concert or artist" 
+                style="width: 100%; padding: 8px; margin-bottom: 10px;" 
+            />
+            <button 
+                id="search-button" 
+                on:click={filterSearch} 
+                style="width: 100%; padding: 10px; background-color: #61b0ff; color: white; border: none; cursor: pointer;">
+                Search
+            </button>
         </div>
-        <ul id="concert-list-items"></ul>
+
+        <!-- Concert List -->
+        <ul id="concert-list-items" style="list-style: none; padding: 0; margin: 0;">
+        </ul>
         <button id="load-more-button" on:click={loadMoreEvents}>Load More</button>
     </div>
 </div>
@@ -609,6 +720,13 @@ function calculateAndDisplayRoute(origin, destination) {
         {/if}
         <img src={selectedEventDetails.images[0].url} alt={selectedEventDetails.name} style="width: 100%; max-width: 300px;">
         <p><a href={selectedEventDetails.url} target="_blank">Tickets</a></p>
+        {#if $user}
+            <!-- Button to save event if user is logged in -->
+            <p> <button on:click={saveEventDetails} class="login-btn">Save to My Account</button> </p>
+        {:else}
+            <!-- Button to prompt user to log in -->
+            <p>Please <button on:click={() => goto('/Login')} class="login-btn">Log in</button> to save this event.</p>
+        {/if}
     </div>
 {/if}
 
@@ -618,10 +736,10 @@ function calculateAndDisplayRoute(origin, destination) {
 	@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@200;300;400;500;600;700&display=swap');
 
 	:global {
-  body {
-    background-color: #f0f0f0; 
-  }
-}
+        body {
+            background-color: #f0f0f0; 
+        }
+    }
 	.input-container {
         margin-bottom: 10px;
     }
@@ -653,16 +771,13 @@ function calculateAndDisplayRoute(origin, destination) {
 		border-radius: 10px;
 		margin-top: 10px;
     }
-    #map-container {
-        width: 80%;
-		position: relative;
-    }
-		/* Style the buttons */
+
+	/* Style the buttons */
 	#currentPositionBtn,
 	#searchAreaBtn,
     #clearCoordinatesBtn{
 		text-align: center;
-		margin: 5px;
+		margin-top: 0px;
 		padding: 10px 20px;
 		background-color: #61b0ff; /* Blue background */
 		color: white;
@@ -680,94 +795,99 @@ function calculateAndDisplayRoute(origin, destination) {
 	}
 
     /* Container style */
-.event-details {
-    /* border: 2px solid #BCD8C1; */
-    border-radius: 5px;
-    box-shadow: 0px 10px 12px rgba(0, 0, 0, 0.1);
-	position: absolute;
-	transform: translate(12%, 5%);
-	width: 1000px;
-	padding: 20px;
-    background-color: #252826;
-}
+    .event-details {
+        /* border: 2px solid #BCD8C1; */
+        border-radius: 5px;
+        box-shadow: 0px 10px 12px rgba(0, 0, 0, 0.1);
+        position: absolute;
+        transform: translate(12%, 5%);
+        width: 1000px;
+        padding: 20px;
+        background-color: #252826;
+    }
 
-/* Center align all text content */
-.event-details * {
-	text-align: center;
-	color:#fff
-}
+    /* Center align all text content */
+    .event-details * {
+        text-align: center;
+        color:#fff
+    }
 
-/* Style the image */
-.event-details img {
-    display: block;
-    margin: 0 auto;
-    max-width: 100%;
-    border-radius: 5px;
-    margin-bottom: 10px;
-}
+    /* Style the image */
+    .event-details img {
+        display: block;
+        margin: 0 auto;
+        max-width: 100%;
+        border-radius: 5px;
+        margin-bottom: 10px;
+    }
 
-/* Style the title */
-.event-details h2 {
-	font-family: "Poetsen One", sans-serif;
-    color: #fff; 
-    font-size: 24px;
-    margin-bottom: 10px;
-}
+    /* Style the title */
+    .event-details h2 {
+        font-family: "Poetsen One", sans-serif;
+        color: #fff; 
+        font-size: 24px;
+        margin-bottom: 10px;
+    }
 
-/* Style the description paragraphs */
-.event-details p {
-    line-height: 1.6;
-    margin-bottom: 10px;
-	font-family: 'Poppins', sans-serif;
-}
+    /* Style the description paragraphs */
+    .event-details p {
+        line-height: 1.6;
+        margin-bottom: 10px;
+        font-family: 'Poppins', sans-serif;
+    }
 
-/* Style the anchor links */
-.event-details a {
-    display: inline-block;
-    margin-top: 15px;
-    padding: 8px 20px;
-    background-color: #007bff; /* Blue background color */
-    color: #fff; /* White text color */
-    text-decoration: none;
-    border-radius: 5px;
-    transition: background-color 0.3s ease;
-}
+    /* Style the anchor links */
+    .event-details a {
+        display: inline-block;
+        margin-top: 15px;
+        padding: 8px 20px;
+        background-color: #007bff; /* Blue background color */
+        color: #fff; /* White text color */
+        text-decoration: none;
+        border-radius: 5px;
+        transition: background-color 0.3s ease;
+    }
 
-/* Hover effect for anchor links */
-.event-details a:hover {
-    background-color: #0056b3; /* Darker blue */
-}
+    /* Hover effect for anchor links */
+    .event-details a:hover {
+        background-color: #0056b3; /* Darker blue */
+    }
 
 
-#app-container {
-    display: flex;
-    height: 100vh; /* Use the full height of the viewport */
-}
+    #app-container {
+        display: flex;
+        height: 100vh; /* Use the full height of the viewport */
+        margin: 0;
+        padding: 0;
+    }
 
-#map-container {
-    flex-grow: 1; /* Allow the map to fill the remaining space */
-    padding: 0;  /* Remove padding */
+    #map-container {
+        width: 80%;
+		position: relative;
+        flex-grow: 1; /* Allow the map to fill the remaining space */
+        padding: 0;  /* Remove padding */
+        justify-content: space-between;
+        margin-bottom: 0px;
+    }
 
-}
+    #sidebar-container {
+        display: none;
+        width: 300px; /* Set a fixed width for the sidebar */
+        overflow-y: auto; /* Add scroll for overflowing content */
+        background-color: white;
+        box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
+        padding: 20px; 
+    }
 
-#sidebar-container {
-    display: none;
-    width: 300px; /* Set a fixed width for the sidebar */
-    overflow-y: auto; /* Add scroll for overflowing content */
-    background-color: white;
-    box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
-    padding: 20px; 
-}
+    #concert-list-items {
+        list-style-type: none;
+        padding: 0;
+        margin: 0;
+        color: #656565;
+        margin-bottom: 10px; /* Adjust as needed */
+    }
 
-#concert-list-items {
-    list-style-type: none;
-    padding: 0;
-    margin: 0;
-    color: #656565;
-    margin-bottom: 10px; /* Adjust as needed */
-}
-
-#sidebar-container h2 {
+    #sidebar-container h2 {
         color: #333;                  /* Change the text color */
         font-size: 1.5em;             /* Set the font size */
         margin: 0 0 20px 0;           /* Add some margin */
@@ -778,123 +898,136 @@ function calculateAndDisplayRoute(origin, destination) {
         /* Add additional styles as needed */
     }
 
-
-/* Style for the directions container */
-#directions-container {
-    background-color: #f8f9fa; /* Light background color */
-    border: 1px solid #ced4da; /* Gray border */
-    border-radius: 8px; /* Rounded corners */
-    padding: 20px; /* Increased padding */
-    max-height: 400px; /* Increased maximum height */
-    overflow-y: auto; /* Enable scrolling */
-    transition: opacity 0.3s ease; /* Fade-in animation */
-    opacity: 0; /* Initially hidden */
-}
-
-/* Style for the travel distance */
-#travel-distance {
-    font-weight: bold;
-    text-align: center;
-    font-size: 1.2em;
-}
-
-/* Style for the travel duration */
-#travel-duration {
-    font-weight: bold;
-    text-align: center;
-}
-
-/* Hover effect for the directions container */
-#directions-container:hover {
-    opacity: 1; /* Show container on hover */
-}
-
-/* Animation for expanding/collapsing directions container */
-@keyframes expandDown {
-    from {
-        max-height: 0;
-        opacity: 0;
+    /* Style for the directions container */
+    #directions-container {
+        background-color: #f8f9fa; /* Light background color */
+        border: 1px solid #ced4da; /* Gray border */
+        border-radius: 8px; /* Rounded corners */
+        padding: 20px; /* Increased padding */
+        max-height: 400px; /* Increased maximum height */
+        overflow-y: auto; /* Enable scrolling */
+        transition: opacity 0.3s ease; /* Fade-in animation */
+        opacity: 0; /* Initially hidden */
     }
-    to {
-        max-height: 400px;
-        opacity: 1;
+
+    /* Style for the travel distance */
+    #travel-distance {
+        font-weight: bold;
+        text-align: center;
+        font-size: 1.2em;
     }
-}
 
-/* Apply animation to directions container */
-#directions-container {
-    animation: expandDown 0.5s ease forwards; /* Animation on opening */
-}
+    /* Style for the travel duration */
+    #travel-duration {
+        font-weight: bold;
+        text-align: center;
+    }
 
-/* Style for the load more button */
-#load-more-button {
-    display: block;
-    margin: 0 auto;
-    padding: 10px 20px;
-    background-color: #61b0ff; /* Blue background */
-    color: white; /* White text color */
-    border: none; /* Remove border */
-    border-radius: 5px; /* Rounded corners */
-    cursor: pointer; /* Change cursor to pointer */
-    transition: background-color 0.3s ease; /* Smooth transition */
-    margin-top: 30px; /* Add some top margin */
-}
+    /* Hover effect for the directions container */
+    #directions-container:hover {
+        opacity: 1; /* Show container on hover */
+    }
 
-/* Hover effect for the load more button */
-#load-more-button:hover {
-    background-color: #4aa0f7; /* Darker blue */
-}
+    /* Animation for expanding/collapsing directions container */
+    @keyframes expandDown {
+        from {
+            max-height: 0;
+            opacity: 0;
+        }
+        to {
+            max-height: 400px;
+            opacity: 1;
+        }
+    }
 
-/* Style for the search input */
-#search-input {
-    border: 1px solid #ccc; /* Add border */
-    border-radius: 4px; /* Rounded corners */
-    font-size: 9px; /* Set font size */
-    width: 65%; /* Set width */
-    margin-right: 10px; /* Add right margin */
-    padding: 8px; /* Add padding */
-}
+    /* Apply animation to directions container */
+    #directions-container {
+        animation: expandDown 0.5s ease forwards; /* Animation on opening */
+    }
 
-/* Style for the search button */
-#search-button {
-    padding: 6px 10px; /* Add padding */    
-    background-color: #61b0ff; /* Blue background */
-    color: white; /* White text color */
-    border: none; /* Remove border */
-    border-radius: 4px; /* Rounded corners */
-    cursor: pointer; /* Change cursor to pointer */
-    transition: background-color 0.3s ease; /* Smooth transition */
-}
+    /* Style for the load more button */
+    #load-more-button {
+        display: block;
+        margin: 0 auto;
+        padding: 10px 20px;
+        background-color: #61b0ff; /* Blue background */
+        color: white; /* White text color */
+        border: none; /* Remove border */
+        border-radius: 5px; /* Rounded corners */
+        cursor: pointer; /* Change cursor to pointer */
+        transition: background-color 0.3s ease; /* Smooth transition */
+        margin-top: 30px; /* Add some top margin */
+    }
 
-/* Hover effect for the search button */
-#search-button:hover {
-    background-color: #4aa0f7; /* Darker blue */
-}
+    /* Hover effect for the load more button */
+    #load-more-button:hover {
+        background-color: #4aa0f7; /* Darker blue */
+    }
 
-/* Style for the search container */
-.search-container {
-    display: flex; /* Use flexbox */
-    align-items: center; /* Center vertically */
-    margin-bottom: 20px; /* Add bottom margin */
-    padding: 0;  /* Remove padding */
-}
+    /* Style for the search input */
+    #search-input {
+        border: 1px solid #ccc; /* Add border */
+        border-radius: 4px; /* Rounded corners */
+        font-size: 9px; /* Set font size */
+        width: 65%; /* Set width */
+        margin-right: 10px; /* Add right margin */
+        padding: 8px; /* Add padding */
+    }
 
-/* Style for the search type select */
-#search-type {
-    border: 1px solid #ccc; /* Add border */
-    border-radius: 4px; /* Rounded corners */
-    font-size: 9px; /* Set font size */
-    padding: 6px; /* Add padding */
-    margin-right: 10px; /* Add right margin */
-}
+    /* Style for the search button */
+    #search-button {
+        padding: 6px 10px; /* Add padding */    
+        background-color: #61b0ff; /* Blue background */
+        color: white; /* White text color */
+        border: none; /* Remove border */
+        border-radius: 4px; /* Rounded corners */
+        cursor: pointer; /* Change cursor to pointer */
+        transition: background-color 0.3s ease; /* Smooth transition */
+    }
 
-.button-container {
-    display: flex;
-    flex-direction: row;  /* Align items horizontally */
-    gap: 20px;  /* Space between items */
-    align-items: center;  /* Vertically align items */
-    padding: 0;  /* Remove padding */
-    margin-top: 0px; /* Space between map container and buttons */
-}
+    /* Hover effect for the search button */
+    #search-button:hover {
+        background-color: #4aa0f7; /* Darker blue */
+    }
 
+    /* Style for the search container */
+    .search-container {
+        display: flex; /* Use flexbox */
+        align-items: center; /* Center vertically */
+        margin-bottom: 20px; /* Add bottom margin */
+        padding: 0;  /* Remove padding */
+    }
+
+    /* Style for the search type select */
+    #search-type {
+        border: 1px solid #ccc; /* Add border */
+        border-radius: 4px; /* Rounded corners */
+        font-size: 9px; /* Set font size */
+        padding: 6px; /* Add padding */
+        margin-right: 10px; /* Add right margin */
+    }
+
+    .button-container {
+        display: flex;
+        flex-direction: row;  /* Align items horizontally */
+        gap: 20px;  /* Space between items */
+        align-items: center;  /* Vertically align items */
+        padding: 0;  /* Remove padding */
+        margin-top: 0px; /* Space between map container and buttons */
+    }
+
+    .login-btn {
+        background-color: #61b0ff; /* Blue background */
+        color: white;  /* White text */
+        border: none;  /* Remove border */
+        padding: 10px 20px;  /* Add padding */
+        border-radius: 5px;  /* Rounded corners */
+        cursor: pointer;  /* Pointer cursor on hover */
+        font-size: 16px;  /* Larger font size */
+        transition: background-color 0.3s ease;  /* Smooth transition for background color */
+    }
+
+    .login-btn:hover {
+        background-color: #5096d0; /* Darker blue on hover */
+    }
 </style>
