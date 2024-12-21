@@ -7,7 +7,6 @@
 
   let user = null; // Store user state
   
-
   onMount(() => {
     // Check if user is signed in (you can also check this in a store for a more global state)
     auth.onAuthStateChanged((u) => {
@@ -26,13 +25,11 @@
   };
 </script>
 
-<!-- <li><a href="/">Home</a></li>
-<li><a href="/about">About</a></li>
--->
-
 <nav>
   <div class="wrapper">
-    <div class="logo"><enhanced:img id="logoImg" src="/static/melody map logo.png" alt="Logo"></div>
+    <div class="logo">
+      <enhanced:img id="logoImg" src="/static/melody map logo.png" alt="Logo"></enhanced:img>
+    </div>
     <input type="radio" name="slider" id="menu-btn">
     <input type="radio" name="slider" id="close-btn">
     <ul class="nav-links">
@@ -40,7 +37,10 @@
       <li><a href="/">Home</a></li>
       <li><a href="/about" class="desktop-item">About</a></li>
       <li><a href="/account" class="desktop-item">Account</a></li>
+      
+      <!-- Add Settings link, only visible if user is logged in -->
       {#if user}
+        <li><a href="/settings" class="desktop-item">Settings</a></li>
         <li><button on:click={handleSignOut} class="signout-button">Sign Out</button></li>
       {:else}
         <li><a href="/Login">Sign In/Register</a></li>
@@ -50,10 +50,9 @@
   </div>
 </nav>
 
-  
-  <style>
-      @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@200;300;400;500;600;700&display=swap');
-  *{
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@200;300;400;500;600;700&display=swap');
+  * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
@@ -64,12 +63,12 @@
 
   @keyframes fadeLogo {
     from {
-        opacity: 1;
+      opacity: 1;
     }
     to {
-        opacity: 0.5;
+      opacity: 0.5;
     }
-}
+  }
 
   #logoImg {
     width: 210px; /* Adjust the width as needed */
@@ -87,16 +86,14 @@
     transform: scale(0.95);
   }
 
-
-  nav{
-    /* Fixed Sidebar (stay in place on scroll and position relative to viewport) */
-    z-index: 99; /* Stay on top */
+  nav {
+    z-index: 99;
     width: 100%;
     height: 78px;
-
     background: #61b0ff;
   }
-  nav .wrapper{
+  
+  nav .wrapper {
     position: relative;
     max-width: 1300px;
     padding: 0px 30px;
@@ -107,20 +104,24 @@
     align-items: center;
     justify-content: space-between;
   }
-  .wrapper .logo a{
+  
+  .wrapper .logo a {
     color: #f2f2f2;
     font-size: 30px;
     font-weight: 600;
     text-decoration: none;
   }
-  .wrapper .nav-links{
+  
+  .wrapper .nav-links {
     display: inline-flex;
   }
-  .nav-links li{
+  
+  .nav-links li {
     list-style: none;
     margin-top: 10px;
   }
-  .nav-links li a{
+  
+  .nav-links li a {
     color: #f7f7f7;
     text-decoration: none;
     font-size: 18px;
@@ -129,32 +130,25 @@
     border-radius: 5px;
     transition: all 0.3s ease;
   }
-  .nav-links li a:hover{
+  
+  .nav-links li a:hover {
     background: #3A3B3C;
   }
 
-  .row .mega-links li a{
-    padding: 0px;
-    padding: 0 20px;
-    color: #d9d9d9;
-    font-size: 17px;
-    display: block;
-  }
-  .row .mega-links li a:hover{
-    color: #f2f2f2;
-  }
-  .wrapper .btn{
+  .wrapper .btn {
     color: #fff;
     font-size: 20px;
     cursor: pointer;
     display: none;
   }
-  .wrapper .btn.close-btn{
+  
+  .wrapper .btn.close-btn {
     position: absolute;
     right: 30px;
     top: 10px;
   }
-  nav input{
+
+  nav input {
     display: none;
   }
 
@@ -169,9 +163,9 @@
     border: none;
     transition: all 0.3s ease;
   }
-  
+
   .signout-button:hover {
     background: #3A3B3C;
   }
   
-  </style>
+</style>
