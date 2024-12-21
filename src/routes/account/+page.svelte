@@ -39,7 +39,7 @@
 {#if $loading}
     <p>Loading...</p>
 {:else if $user}
-    <h1>Welcome, {user.displayName || 'User'}!</h1>
+    <h1>Welcome, {$user.displayName || 'User'}!</h1>
     {#if !$user.displayName}
         <p>Your display name is not set. <a href="/settings">Click here</a> to set it.</p>
     {/if}
