@@ -1,9 +1,6 @@
 // Import the functions you need from the SDKs you need
-import { deleteApp, getApp, getApps, initializeApp } from "firebase/app";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
-import {getAuth, setPersistence, inMemoryPersistence} from 'firebase/auth'
-
+import { deleteApp, getApp, getApps, initializeApp } from 'firebase/app';
+import { getAuth, setPersistence, inMemoryPersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 // Your web app's Firebase configuration
@@ -21,18 +18,25 @@ const firebaseConfig = {
 // Initialize Firebase only on the client-side
 let firebaseApp;
 let auth;
+let db;
 
-if (typeof window !== "undefined") {
+if (typeof window !== 'undefined') {
+  // Initialize Firebase app if not already initialized
   if (!getApps().length) {
     firebaseApp = initializeApp(firebaseConfig);
   } else {
-    firebaseApp = getApp();
+    firebaseApp = getApp(); // Reuse the already initialized app
   }
 
-  // Get the Auth instance
+  // Get the Auth and Firestore instances
   auth = getAuth(firebaseApp);
-}
+  db = getFirestore(firebaseApp);
 
-const db = getFirestore(firebaseApp);
+  // Optional: Set persistence for auth (if needed)
+  setPersistence(auth, inMemoryPersistence)
+    .catch((error) => {
+      console.error('Error setting persistence:', error);
+    });
+}
 
 export { db, auth };
